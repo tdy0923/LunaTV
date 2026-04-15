@@ -47,24 +47,37 @@ declare global {
 
 let segmentsBucket: StorageBucket | null = null;
 let supportsStorageBuckets = false;
+let storageBucketsInitPromise: Promise<void> | null = null;
 
 /**
  * 初始化 Storage Buckets（如果支持）
  */
 async function initStorageBuckets(): Promise<void> {
+  if (typeof navigator === 'undefined') {
+    return;
+  }
+
   if ('storageBuckets' in navigator) {
     try {
       segmentsBucket = await navigator.storageBuckets!.open(SEGMENTS_BUCKET);
       supportsStorageBuckets = true;
       console.log('✅ Storage Buckets enabled for video segments');
     } catch (error) {
-      console.warn('Storage Buckets not available, using default IndexedDB:', error);
+      console.warn(
+        'Storage Buckets not available, using default IndexedDB:',
+        error,
+      );
     }
   }
 }
 
-// 初始化
-initStorageBuckets();
+async function ensureStorageBucketsInitialized(): Promise<void> {
+  if (!storageBucketsInitPromise) {
+    storageBucketsInitPromise = initStorageBuckets();
+  }
+
+  await storageBucketsInitPromise;
+}
 
 /**
  * 打开任务数据库（主数据库）
@@ -87,7 +100,10 @@ function openTasksDB(): Promise<IDBDatabase> {
       }
 
       // 如果不支持 Storage Buckets，在主数据库创建片段存储
-      if (!supportsStorageBuckets && !db.objectStoreNames.contains(SEGMENTS_STORE)) {
+      if (
+        !supportsStorageBuckets &&
+        !db.objectStoreNames.contains(SEGMENTS_STORE)
+      ) {
         const segmentStore = db.createObjectStore(SEGMENTS_STORE, {
           keyPath: ['taskId', 'segmentIndex'],
         });
@@ -130,13 +146,13 @@ function openSegmentsDB(): Promise<IDBDatabase> {
 export async function saveTask(
   id: string,
   task: M3U8Task,
-  status: StoredTask['status']
+  status: StoredTask['status'],
 ): Promise<void> {
+  await ensureStorageBucketsInitialized();
   const db = await openTasksDB();
   const transaction = db.transaction([TASKS_STORE], 'readwrite');
   const store = transaction.objectStore(TASKS_STORE);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { downloadedSegments, ...taskWithoutSegments } = task;
 
   // 深度清理 aesConf，移除 crypto-js 对象中的不可序列化函数
@@ -149,7 +165,9 @@ export async function saveTask(
       // 只保存 key 的原始数据，不保存 WordArray 对象
       key: taskWithoutSegments.aesConf.key
         ? (taskWithoutSegments.aesConf.key as any).words
-          ? new Uint8Array((taskWithoutSegments.aesConf.key as any).words.length * 4)
+          ? new Uint8Array(
+              (taskWithoutSegments.aesConf.key as any).words.length * 4,
+            )
           : taskWithoutSegments.aesConf.key
         : null,
     },
@@ -176,9 +194,10 @@ export async function saveTask(
 export async function saveSegment(
   taskId: string,
   segmentIndex: number,
-  data: ArrayBuffer
+  data: ArrayBuffer,
 ): Promise<void> {
   try {
+    await ensureStorageBucketsInitialized();
     const db = await openSegmentsDB();
     const transaction = db.transaction([SEGMENTS_STORE], 'readwrite');
     const store = transaction.objectStore(SEGMENTS_STORE);
@@ -198,7 +217,11 @@ export async function saveSegment(
   } catch (error) {
     // 如果是 QuotaExceededError，忽略（磁盘空间不足）
     if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-      console.warn('IndexedDB quota exceeded, segment not saved:', taskId, segmentIndex);
+      console.warn(
+        'IndexedDB quota exceeded, segment not saved:',
+        taskId,
+        segmentIndex,
+      );
       return;
     }
     throw error;
@@ -209,11 +232,12 @@ export async function saveSegment(
  * 批量保存片段（性能优化）
  */
 export async function saveSegmentsBatch(
-  segments: Array<{ taskId: string; segmentIndex: number; data: ArrayBuffer }>
+  segments: Array<{ taskId: string; segmentIndex: number; data: ArrayBuffer }>,
 ): Promise<void> {
   if (segments.length === 0) return;
 
   try {
+    await ensureStorageBucketsInitialized();
     const db = await openSegmentsDB();
     const transaction = db.transaction([SEGMENTS_STORE], 'readwrite');
     const store = transaction.objectStore(SEGMENTS_STORE);
@@ -247,6 +271,7 @@ export async function saveSegmentsBatch(
  * 获取所有任务
  */
 export async function getAllTasks(): Promise<StoredTask[]> {
+  await ensureStorageBucketsInitialized();
   const db = await openTasksDB();
   const transaction = db.transaction([TASKS_STORE], 'readonly');
   const store = transaction.objectStore(TASKS_STORE);
@@ -261,7 +286,10 @@ export async function getAllTasks(): Promise<StoredTask[]> {
 /**
  * 获取任务的所有片段（使用批量读取优化）
  */
-export async function getTaskSegments(taskId: string): Promise<Map<number, ArrayBuffer>> {
+export async function getTaskSegments(
+  taskId: string,
+): Promise<Map<number, ArrayBuffer>> {
+  await ensureStorageBucketsInitialized();
   const db = await openSegmentsDB();
   const transaction = db.transaction([SEGMENTS_STORE], 'readonly');
   const store = transaction.objectStore(SEGMENTS_STORE);
@@ -279,7 +307,7 @@ export async function getTaskSegments(taskId: string): Promise<Map<number, Array
         segments.map(async (segment) => {
           const arrayBuffer = await segment.data.arrayBuffer();
           map.set(segment.segmentIndex, arrayBuffer);
-        })
+        }),
       );
 
       resolve(map);
@@ -292,6 +320,7 @@ export async function getTaskSegments(taskId: string): Promise<Map<number, Array
  * 删除任务及其所有片段
  */
 export async function deleteTask(taskId: string): Promise<void> {
+  await ensureStorageBucketsInitialized();
   // 删除任务元数据
   const tasksDB = await openTasksDB();
   const tasksTransaction = tasksDB.transaction([TASKS_STORE], 'readwrite');
@@ -305,7 +334,10 @@ export async function deleteTask(taskId: string): Promise<void> {
 
   // 删除所有片段
   const segmentsDB = await openSegmentsDB();
-  const segmentsTransaction = segmentsDB.transaction([SEGMENTS_STORE], 'readwrite');
+  const segmentsTransaction = segmentsDB.transaction(
+    [SEGMENTS_STORE],
+    'readwrite',
+  );
   const segmentStore = segmentsTransaction.objectStore(SEGMENTS_STORE);
   const index = segmentStore.index('taskId');
   const request = index.openCursor(IDBKeyRange.only(taskId));
@@ -329,8 +361,9 @@ export async function deleteTask(taskId: string): Promise<void> {
  */
 export async function updateTaskStatus(
   taskId: string,
-  status: StoredTask['status']
+  status: StoredTask['status'],
 ): Promise<void> {
+  await ensureStorageBucketsInitialized();
   const db = await openTasksDB();
   const transaction = db.transaction([TASKS_STORE], 'readwrite');
   const store = transaction.objectStore(TASKS_STORE);
@@ -363,6 +396,10 @@ export async function getStorageEstimate(): Promise<{
   usageMB: number;
   quotaMB: number;
 }> {
+  if (typeof navigator === 'undefined') {
+    return { usage: 0, quota: 0, percentage: 0, usageMB: 0, quotaMB: 0 };
+  }
+
   if ('storage' in navigator && 'estimate' in navigator.storage) {
     const estimate = await navigator.storage.estimate();
     const usage = estimate.usage || 0;
@@ -379,8 +416,9 @@ export async function getStorageEstimate(): Promise<{
  * 清理已完成的任务（保留元数据，删除片段数据）
  */
 export async function cleanupCompletedTasks(): Promise<number> {
+  await ensureStorageBucketsInitialized();
   const tasks = await getAllTasks();
-  const completedTasks = tasks.filter(t => t.status === 'done');
+  const completedTasks = tasks.filter((t) => t.status === 'done');
 
   for (const task of completedTasks) {
     // 只删除片段，保留任务元数据
@@ -411,7 +449,9 @@ export async function cleanupCompletedTasks(): Promise<number> {
  * 检查是否支持 Storage Buckets
  */
 export function isStorageBucketsSupported(): boolean {
-  return supportsStorageBuckets;
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  return supportsStorageBuckets || 'storageBuckets' in navigator;
 }
-
-

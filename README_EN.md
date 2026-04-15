@@ -25,7 +25,7 @@
 ![HLS.js](https://img.shields.io/badge/HLS.js-1.6.15-ec407a)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Docker Ready](https://img.shields.io/badge/Docker-ready-blue?logo=docker)
-![Version](https://img.shields.io/badge/Version-6.3.0-orange)
+![Version](https://img.shields.io/badge/Version-6.3.1-orange)
 
 </div>
 
@@ -33,7 +33,7 @@
 
 ## 📢 About
 
-This project originates from **MoonTV** and is now continuously maintained as a secondary-development branch for real production use. Starting from **v4.3.1**, it has evolved to the current **v6.3.0** with 60+ major feature modules and 400+ detail optimizations. The current repository focuses on the live operation of `www.5572.net`, especially Cloudflare integration, low-resource server tuning, cache governance, and deployment stability. See [CHANGELOG](CHANGELOG) for all new features.
+This project originates from **MoonTV** and is now continuously maintained as a secondary-development branch for real production use. Starting from **v4.3.1**, it has evolved to the current **v6.3.1** with 60+ major feature modules and 400+ detail optimizations. The current repository focuses on the live operation of `www.5572.net`, especially Cloudflare integration, low-resource server tuning, cache governance, and deployment stability. See [CHANGELOG](CHANGELOG) for all new features.
 
 ### Repository Positioning
 

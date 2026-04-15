@@ -25,7 +25,7 @@
 ![HLS.js](https://img.shields.io/badge/HLS.js-1.6.15-ec407a)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Docker Ready](https://img.shields.io/badge/Docker-ready-blue?logo=docker)
-![Version](https://img.shields.io/badge/Version-6.3.0-orange)
+![Version](https://img.shields.io/badge/Version-6.3.1-orange)
 
 </div>
 
@@ -33,7 +33,7 @@
 
 ## 📢 项目说明
 
-本项目源自 **MoonTV**，并在其基础上持续进行二次开发与生产维护。从 **v4.3.1** 版本开始，逐步演进至当前 **v6.3.0**，累计新增 60+ 重大功能模块与 400+ 细节优化。当前仓库聚焦 `www.5572.net` 的线上运行场景，重点覆盖 Cloudflare 协同优化、弱配置服务器适配、缓存治理与部署稳定性。所有新增功能详见 [CHANGELOG](CHANGELOG)。
+本项目源自 **MoonTV**，并在其基础上持续进行二次开发与生产维护。从 **v4.3.1** 版本开始，逐步演进至当前 **v6.3.1**，累计新增 60+ 重大功能模块与 400+ 细节优化。当前仓库聚焦 `www.5572.net` 的线上运行场景，重点覆盖 Cloudflare 协同优化、弱配置服务器适配、缓存治理与部署稳定性。所有新增功能详见 [CHANGELOG](CHANGELOG)。
 
 ### 当前仓库定位
 

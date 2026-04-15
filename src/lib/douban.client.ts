@@ -1052,13 +1052,9 @@ export async function getDoubanComments(
   const cacheKey = getCacheKey('comments', { id, start, limit, sort });
   const cached = await getCache(cacheKey);
   if (cached && cached.data?.comments?.length > 0) {
-    console.log(`豆瓣短评缓存命中: ${id}/${start}`);
     return cached;
   }
-  if (cached && cached.data?.comments?.length === 0) {
-    console.log(`豆瓣短评缓存无效(空数据): ${id}/${start}，重新获取`);
-    // 缓存无效，继续执行下面的逻辑重新获取
-  }
+  // 缓存为空时继续回源获取
 
   try {
     const response = await fetch(
@@ -1074,7 +1070,6 @@ export async function getDoubanComments(
     // 保存到缓存
     if (result.code === 200) {
       await setCache(cacheKey, result, DOUBAN_CACHE_EXPIRE.comments);
-      console.log(`豆瓣短评已缓存: ${id}/${start}`);
     }
 
     return result;

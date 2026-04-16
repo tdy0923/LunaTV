@@ -3469,14 +3469,12 @@ function PlayPageClient() {
           console.warn('获取当前源详情失败:', err);
         }
 
-        // 异步获取其他源信息，不阻塞播放
+        // 异步获取其他源信息；如果当前源详情失效，则使用它们作为回退
         setBackgroundSourcesLoading(true);
-        fetchSourcesData(searchTitle || videoTitle)
+        const otherSources = await fetchSourcesData(searchTitle || videoTitle)
           .then((sources) => {
-            // 合并当前源和搜索到的其他源
             const allSources = [...sourcesInfo];
             sources.forEach((source) => {
-              // 避免重复添加当前源
               if (
                 !(source.source === currentSource && source.id === currentId)
               ) {
@@ -3484,12 +3482,23 @@ function PlayPageClient() {
               }
             });
             setAvailableSources(allSources);
-            setBackgroundSourcesLoading(false);
+            return allSources;
           })
           .catch((err) => {
             console.error('异步获取其他源失败:', err);
+            return [...sourcesInfo];
+          })
+          .finally(() => {
             setBackgroundSourcesLoading(false);
           });
+
+        if (!detailData && otherSources.length > 0) {
+          console.warn(
+            '[Play] 当前指定源详情失效，自动回退到搜索到的其他可用源',
+          );
+          sourcesInfo = otherSources;
+          detailData = otherSources[0];
+        }
       } else {
         // 没有source和id，正常搜索流程
         sourcesInfo = await fetchSourcesData(searchTitle || videoTitle);

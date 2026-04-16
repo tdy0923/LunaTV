@@ -624,7 +624,9 @@ function PlayPageClient() {
   const [isAudioTrackSwitching, setIsAudioTrackSwitching] = useState(false);
   const audioTracksRef = useRef(audioTracks);
   const currentAudioTrackRef = useRef(currentAudioTrack);
-  const invalidSourceKeysRef = useRef<Set<string>>(new Set());
+  const invalidSourceKeysRef = useRef<Map<string, number>>(new Map());
+
+  const INVALID_SOURCE_TTL_MS = 10 * 60 * 1000;
 
   // 🚀 使用 useDanmu Hook 管理弹幕
   const danmuScopeKey = `${videoTitle}_${videoYear}_${videoDoubanId}_${currentEpisodeIndex + 1}`;
@@ -1583,12 +1585,20 @@ function PlayPageClient() {
     `${source}::${id}`;
 
   const filterInvalidSources = (sources: SearchResult[]): SearchResult[] => {
-    return sources.filter(
-      (source) =>
-        !invalidSourceKeysRef.current.has(
-          getSourceIdentityKey(source.source, source.id),
-        ),
-    );
+    const now = Date.now();
+
+    return sources.filter((source) => {
+      const key = getSourceIdentityKey(source.source, source.id);
+      const failedAt = invalidSourceKeysRef.current.get(key);
+      if (!failedAt) return true;
+
+      if (now - failedAt > INVALID_SOURCE_TTL_MS) {
+        invalidSourceKeysRef.current.delete(key);
+        return true;
+      }
+
+      return false;
+    });
   };
 
   // 设置可用源列表（先按权重排序）
@@ -3156,7 +3166,10 @@ function PlayPageClient() {
 
         if (!detailResponse.ok) {
           if (detailResponse.status === 404 && source && id) {
-            invalidSourceKeysRef.current.add(getSourceIdentityKey(source, id));
+            invalidSourceKeysRef.current.set(
+              getSourceIdentityKey(source, id),
+              Date.now(),
+            );
           }
           throw new Error(`获取视频详情失败 (${detailResponse.status})`);
         }
